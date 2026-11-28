@@ -23,6 +23,15 @@
   ],
   "max_age_days": 240,
   "models": {
+    "l0xre-v2-27b-low": {
+      "family": "qwen",
+      "name": "L0xRE V2 27B Low",
+      "released": "2026-11-18",
+      "reasoning": true,
+      "vision": true,
+      "about": "Qwen3.8-27B GGUF served with BeeLLama Low, DFlash2 and a sparse attention map.",
+      "hf": "YourHighnessLA/L0xRE-V2-27b-Low"
+    },
     "underdog-saluki-27b-1.0": {
       "family": "qwen",
       "name": "Underdog Saluki 27B 1.0",
@@ -205,6 +214,17 @@
       "logo": "qwen",
       "hf": "quaedra/Welp-35B-A3B-GGUF"
     },
+    "hauhau-qwen3.6-35b-a3b": {
+      "family": "qwen",
+      "name": "Hauhau-35B-A3B",
+      "released": "2026-04-17",
+      "reasoning": true,
+      "vision": false,
+      "about": "HauhauCS's uncensored (Aggressive) fine-tune of Qwen3.6-35B-A3B, served as the 11.7 GB IQ2_M GGUF; re-hosted on Hugging Face by ordlibrary.",
+      "good_for": "Fast uncensored general work",
+      "logo": "qwen",
+      "hf": "ordlibrary/hauhau-qwen36-uncensored"
+    },
     "deepseek-v4-flash": {
       "family": "deepseek",
       "name": "DeepSeek-V4-Flash",
@@ -316,8 +336,8 @@
       "released": "2026-11-17",
       "reasoning": true,
       "vision": true,
-      "about": "Thinking Machines' Inkling 2 Mini (26B looped MoE, NVFP4 + FP8 experts, 1M context).",
-      "good_for": "Million-token context on one Spark",
+      "about": "Thinking Machines' Inkling 2 Mini (26.4B looped MoE, 5.4B active, NVFP4 + FP8 experts, 1M context). The GGUF stores 24 blocks and runs the middle 12 three times, so a pass visits 48 layers on 24 sets of weights: 15.7 GB of 4-bit weights carries quality that normally needs a much larger model.",
+      "good_for": "Million-token context on one Spark; 256K with vision and DSpark on one or two Arc Pro B70",
       "logo": "hf",
       "hf": "thinkingmachines/Inkling-2-Mini"
     },
@@ -537,6 +557,17 @@
         "at": "2026-10-05"
       }
     },
+    "lfm3-1.7b": {
+      "family": "lfm",
+      "name": "LFM3-1.7B",
+      "released": "2026-10-23",
+      "reasoning": true,
+      "vision": false,
+      "about": "Liquid AI's 1.7B hybrid model with a 256K context: it thinks before it answers and calls tools.",
+      "good_for": "Fast tool calls and long context on small cards",
+      "logo": "hf",
+      "hf": "LiquidAI/LFM3-1.7B"
+    },
     "ornith-1.5-9b": {
       "family": "ornith",
       "name": "Ornith-1.5-9B",
@@ -601,6 +632,16 @@
         "estimated": true,
         "at": "2026-10-05"
       }
+    },
+    "gemma-4-26b-a4b-ultra-heretic": {
+      "family": "gemma",
+      "name": "Gemma 4 26B-A4B Ultra Heretic",
+      "released": "2026-04-07",
+      "reasoning": true,
+      "vision": false,
+      "about": "The Ultra Heretic Q3_K_M GGUF variant of Gemma 4 26B-A4B, served here as text.",
+      "logo": "hf",
+      "hf": "llmfan46/gemma-4-26B-A4B-it-ultra-uncensored-heretic-GGUF"
     },
     "gemma-4-26b-a4b-it-awq-4bit": {
       "family": "gemma",
@@ -811,17 +852,6 @@
       "logo": "hf",
       "hf": "LiquidAI/LFM2.5-24B-A2B"
     },
-    "lfm3-1.7b": {
-      "family": "lfm",
-      "name": "LFM3-1.7B",
-      "released": "2026-10-23",
-      "reasoning": true,
-      "vision": false,
-      "about": "Liquid AI's 1.7B hybrid model with a 256K context: it thinks before it answers and calls tools.",
-      "good_for": "Fast tool calls and long context on small cards",
-      "logo": "hf",
-      "hf": "LiquidAI/LFM3-1.7B"
-    },
     "nemotron-3.5-bolt-e4b": {
       "family": "nemotron",
       "name": "Nemotron 3.5 Bolt E4B",
@@ -898,9 +928,27 @@
       "good_for": "Coding agents and tool calls on a 12 GB card with experts in system RAM",
       "logo": "hf",
       "hf": "RecursiveSI/flint"
+    },
+    "qwen3.5-9b-defiant-fable-heretic": {
+      "family": "qwen",
+      "name": "Qwen3.5-9B The Defiant Fable Heretic",
+      "released": "2026-07-19",
+      "reasoning": true,
+      "vision": true,
+      "about": "DavidAU's uncensored (Heretic) Qwen3.5-9B, published as NEO-imatrix GGUFs with a BF16 output head and the MTP head.",
+      "good_for": "Uncensored chat and writing that fits whole on a 12 GB card",
+      "logo": "qwen",
+      "hf": "DavidAU/Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP",
+      "aa": {
+        "of": "qwen3.5-9b"
+      }
     }
   },
   "builds": {
+    "unsloth/LFM2.5-24B-A2B-GGUF@aacc77834f6aa568c93b4dbd6d295059736be98c": {
+      "format": "GGUF · UD-IQ3_XXS",
+      "size_gb": 8.95932848
+    },
     "ConwayResearch/Underdog-Saluki-27B-1.0@1336c0b5d74dfe6ad7f793577092f5effd9f97c6": {
       "format": "GGUF · IQ2-mix",
       "size_gb": 7.898369152
@@ -1368,6 +1416,10 @@
       "format": "GGUF · Q4_0 (QAD)",
       "size_gb": 13.58
     },
+    "LiquidAI/LFM3-1.7B-GGUF@cd0c74c575b5c416f3011b5b4c298077f26ca8c2": {
+      "format": "GGUF · QAD-Q4_0",
+      "size_gb": 1.05
+    },
     "Honkware/Nanbeige4.3-33B-exl3-4.0bpw@164ca0ee2b4a2aedb3d43c903cdff53f9688120c": {
       "format": "EXL3 · 4 bpw, 6-bit head",
       "size_gb": 17.41
@@ -1375,10 +1427,6 @@
     "turboderp/Qwen3.8-27B-exl3@86b95530f9d365d90dd24d01a997a8de0cdf6c55": {
       "format": "EXL3 · SC 3.00bpw H4",
       "size_gb": 12.55
-    },
-    "LiquidAI/LFM3-1.7B-GGUF@cd0c74c575b5c416f3011b5b4c298077f26ca8c2": {
-      "format": "GGUF · QAD-Q4_0",
-      "size_gb": 1.05
     },
     "LiquidAI/LFM3-VL-2B-GGUF@1add221a5ea6c047fcf1eaaf2d247939d7cf8849": {
       "format": "GGUF · QAD-Q4_0, vision",
@@ -1435,6 +1483,34 @@
     "mlx-community/Inkling-2-Mini-4bit@9856dc53edead71405f8348930937c3638ff21a2": {
       "format": "MLX · 4-bit attention (g64), NVFP4/MXFP8 experts",
       "size_gb": 17.31
+    },
+    "turboderp/Hy4-flash-exl3@f4b66a88b4d8937fec21ad695f6baa405105ee12": {
+      "format": "EXL3 · SC 4.00bpw",
+      "size_gb": 148.2
+    },
+    "thinkingmachines/Inkling-2-Mini@ed40e7da625f594fc9c4990f5f66be24873c22d7": {
+      "format": "NVFP4/MXFP8 MoE · DSpark MTP",
+      "size_gb": 20.19
+    },
+    "ggml-org/Inkling-2-Mini-GGUF@db61c5b492a6a034d986328d28274af0a439aa6c": {
+      "format": "GGUF · IQ4_NL",
+      "size_gb": 17.63
+    },
+    "mlx-community/Inkling-2-Mini-oQ4e-mtp@3eea042751cd296b7266628a8342c1749242e1fe": {
+      "format": "MLX · oQ4e 4-bit (NVFP4 + affine 4/8-bit), native DSpark MTP",
+      "size_gb": 16.85
+    },
+    "thinkingmachines/Inkling-2-Mini@7a67ae2314b44ef05c87fd1d4d311c58aaeb18f6": {
+      "format": "safetensors · NVFP4/MXFP8 experts, bf16 attention, MTP head",
+      "size_gb": 20.16
+    },
+    "DavidAU/Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP-GGUF@4d47954f2ef8277567a20508dd3f88def5404455": {
+      "format": "GGUF · Q6_K, BF16 head",
+      "size_gb": 8.759
+    },
+    "ggml-org/Inkling-2-Mini-GGUF@e8a2cecf0e78914f07cc27b9be711a9b2c7561d9": {
+      "format": "GGUF · IQ4_NL (experts in RAM)",
+      "size_gb": 17.628
     }
   }
 }

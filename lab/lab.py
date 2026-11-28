@@ -270,9 +270,10 @@ def call(endpoint, path, body=None, timeout=3600):  # a 128k prompt on a small c
     return out, time.monotonic() - t
 
 
-def count(endpoint, text):
+def count(endpoint, text, model=None):
     """Tokens in text, from the server's tokenizer when it has one (TabbyAPI: /v1/token/encode; vLLM: /tokenize;
-    SGLang: /v1/tokenize; llama-server: /tokenize with `content`, which answers `prompt` with an empty list)."""
+    SGLang: /v1/tokenize; llama-server: /tokenize with `content`, which answers `prompt` with an empty list;
+    mtplx and oMLX: only Anthropic's /v1/messages/count_tokens, which needs the served model's id)."""
     for path, body in (("/v1/token/encode", {"text": text}), ("/tokenize", {"prompt": text}), ("/v1/tokenize", {"prompt": text}),
                        ("/tokenize", {"content": text})):
         try:
@@ -282,7 +283,21 @@ def count(endpoint, text):
             continue
         if n or not text:  # no tokens for a non-empty text is a request the server did not understand
             return n, "tokenizer"
+    if model:
+        # count_tokens runs the model's own tokenizer over the chat-templated prompt, so it counts the template's
+        # tokens too: the same request with an empty message measures them, and the difference is the text's count
+        try:
+            n = messages_tokens(endpoint, model, text) - messages_tokens(endpoint, model, "")
+        except Exception:
+            n = None
+        if n is not None and (n > 0 or not text):
+            return n, "tokenizer"
     return len(text) // 4, "estimate"
+
+
+def messages_tokens(endpoint, model, text):
+    out, _ = call(endpoint, "/v1/messages/count_tokens", {"model": model, "messages": [{"role": "user", "content": text}]}, timeout=120)
+    return int(out["input_tokens"])
 
 
 DIFFUSION_UNSUPPORTED_SAMPLING = ("temperature", "min_p", "seed", "min_tokens", "logit_bias", "bad_words", "allowed_token_ids")
@@ -319,10 +334,10 @@ def chat(endpoint, model, messages, **kw):
     if (out.get("timings") or {}).get("peak_memory"):  # mlx-vlm: the allocator's peak for this request, decimal GB
         u["peak_memory_gb"] = out["timings"]["peak_memory"]
     if not u.get("prompt_tokens"):  # TabbyAPI called directly leaves usage empty; count what went in and came out
-        u["prompt_tokens"], u["counted"] = count(endpoint, "\n".join(m.get("content") or "" for m in messages))
+        u["prompt_tokens"], u["counted"] = count(endpoint, "\n".join(m.get("content") or "" for m in messages), model)
     if not u.get("completion_tokens"):
         m = c.get("message") or {}
-        u["completion_tokens"], u["counted"] = count(endpoint, (m.get("reasoning_content") or m.get("reasoning") or "") + (m.get("content") or ""))
+        u["completion_tokens"], u["counted"] = count(endpoint, (m.get("reasoning_content") or m.get("reasoning") or "") + (m.get("content") or ""), model)
     return c, u, secs
 
 
@@ -354,8 +369,8 @@ def stream_rate(endpoint, model, prompt, window=30.0):
     whole = "".join(text)
     elapsed = time.monotonic() - (first or t0)
     sample, span = at_window or (whole, elapsed)
-    n, source = count(endpoint, sample)
-    total, _ = count(endpoint, whole)
+    n, source = count(endpoint, sample, model)
+    total, _ = count(endpoint, whole, model)
     # the window the rate was measured over: the 30 s one when the answer outlasts it, the whole answer
     # when it ends before it. The evidence has to name it, or a reader cannot check the rate from it.
     return (n / span if span else 0), total, time.monotonic() - t0, n, round(span, 1), source
@@ -408,12 +423,12 @@ def run_gates(endpoint, launch, ev, ok):
     ok["chat"] = bool((c["message"].get("content") or "").strip()) and c.get("finish_reason") == "stop"
     ev["chat"] = {"content": c["message"].get("content"), "finish": c.get("finish_reason")}
     # reasoning: thinking comes back separately, and the answer is right
-    c, u, _ = chat(endpoint, served, [{"role": "user", "content": "What is 17 * 23? Reply with only the number."}])
+    c, u, _ = chat(endpoint, served, [{"role": "user", "content": "A train departs at 14:35 and arrives at 17:10. A second train on the same route is 25 minutes faster. How many minutes does the second train take? Reply with only the number."}])
     thinking = c["message"].get("reasoning_content") or c["message"].get("reasoning") or ""
     content = c["message"].get("content") or ""
-    # the answer must be the number itself: "3910" or "the 391st shipment" do not answer 17 x 23
+    # the answer must be the number itself: "1300" or "the 130th train" do not answer the question
     numbers = {int(n) for n in re.findall(r"\b\d+\b", content)}
-    ok["reasoning"] = bool(thinking.strip()) and 391 in numbers and "<think>" not in content
+    ok["reasoning"] = bool(thinking.strip()) and 130 in numbers and "<think>" not in content
     ev["reasoning"] = {"thinking_chars": len(thinking), "content": content[-200:]}
     # tools: a call with the right arguments, then the result used in the reply
     tool = {"type": "function", "function": {"name": "get_weather", "description": "Current weather for a city",
@@ -831,7 +846,7 @@ def cmd_check(_):
             assert not r["proof"][0].get("reported") or r["proof"][0].get("src"), "a reported proof names its source"
             assert need <= set(r["proof"][0]["gates"].split()), "latest proof lacks a gate"
             assert f.stat().st_size <= MAX_RECIPE_BYTES, f"{f.stat().st_size} bytes"
-            rel = str(f.relative_to(RECIPES))
+            rel = f.relative_to(RECIPES).as_posix()
             low = not p.get("withdrawn") and below_kv_floor(r, launch)
             if rel in exempt:
                 assert low, f"listed in {KV_FLOOR_EXEMPT} but not below the KV floor; remove it from the list"
