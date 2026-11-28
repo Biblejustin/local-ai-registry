@@ -1447,6 +1447,10 @@
     "thinkingmachines/Inkling-2-Mini@ed40e7da625f594fc9c4990f5f66be24873c22d7": {
       "format": "NVFP4/MXFP8 MoE · DSpark MTP",
       "size_gb": 20.19
+    },
+    "ggml-org/Inkling-2-Mini-GGUF@db61c5b492a6a034d986328d28274af0a439aa6c": {
+      "format": "GGUF · IQ4_NL",
+      "size_gb": 17.63
     }
   }
 }
