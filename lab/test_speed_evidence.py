@@ -80,10 +80,13 @@ class SpeedEvidenceTest(unittest.TestCase):
     def setUp(self):
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Engine)
         self.endpoint = "http://127.0.0.1:%d" % self.server.server_address[1]
-        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.thread = threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+        self.thread.start()
 
     def tearDown(self):
         self.server.shutdown()
+        self.server.server_close()
+        self.thread.join()
 
     def test_the_speed_evidence_says_what_was_measured(self):
         ok, proof, ev = lab.gates(self.endpoint, {"ctx": 4096, "port": 12434})

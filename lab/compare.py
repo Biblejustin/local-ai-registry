@@ -71,7 +71,7 @@ async def stream(sess, url, body):
 def workload(corpus, tok, ctx, levels, seed):
     """Every prompt both engines will see, fixed before either boots: cold prefill prompts and replay turns per wave."""
     rng = random.Random(seed)
-    words = open("/usr/share/dict/words").read().split() if Path("/usr/share/dict/words").exists() else list(string.ascii_lowercase)
+    words = Path("/usr/share/dict/words").read_text(encoding="utf-8").split() if Path("/usr/share/dict/words").exists() else list(string.ascii_lowercase)
     n = min(8192, ctx // 2)
     fits = []
     for s in corpus:

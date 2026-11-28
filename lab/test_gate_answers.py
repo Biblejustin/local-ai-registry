@@ -107,6 +107,27 @@ class GateAnswerTests(unittest.TestCase):
         self.config["tools"] = "use"
         self.assertTrue(self.gates()["ok"]["tools"])
 
+    def test_select_served_picks_matching_model_from_multi_model_server(self):
+        models = [{"id": "cached/other-model"}, {"id": "Qwen3.8-27B-oQ4e-mtp"}, {"id": "another/model"}]
+        self.assertEqual(lab.select_served(models, {"args": ["--served-model-name", "Qwen3.8-27B-oQ4e-mtp"]}), "Qwen3.8-27B-oQ4e-mtp")
+        self.assertEqual(lab.select_served(models, {"command": ["omlx", "--alias=Qwen3.8-27B-oQ4e-mtp"]}), "Qwen3.8-27B-oQ4e-mtp")
+        self.assertEqual(lab.select_served(models, {"weights": [{"repo": "Jundot/Qwen3.8-27B-oQ4e-mtp", "at": "/models/x"}]}), "Qwen3.8-27B-oQ4e-mtp")
+        self.assertEqual(lab.select_served([{"id": "only-one"}], {}), "only-one")
+        self.assertEqual(lab.select_served(models, {}), "cached/other-model")
+
+    def test_context_gate_scales_timeout_for_large_windows(self):
+        timeouts = []
+        orig_chat = lab.chat
+
+        def spy_chat(endpoint, model, messages, timeout=3600, **kw):
+            timeouts.append(timeout)
+            return orig_chat(endpoint, model, messages, timeout=timeout, **kw)
+
+        from unittest.mock import patch
+        with patch.object(lab, "chat", side_effect=spy_chat):
+            lab.gates(f"http://127.0.0.1:{self.server.server_port}", {"ctx": 200000})
+        self.assertTrue(any(t > 3600 for t in timeouts), f"expected scaled timeout > 3600, got {timeouts}")
+
 
 if __name__ == "__main__":
     unittest.main()

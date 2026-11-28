@@ -1,5 +1,5 @@
 import { command as sdkCommand } from "../../sdk/js/index.js";
-import { cards, models, recipes, short, setupOf, format, engineKind, status, fmtDate, ctxLabel, type Recipe } from "./registry";
+import { card, cards, models, recipes, short, setupOf, format, engineKind, status, fmtDate, ctxLabel, type Recipe } from "./registry";
 
 export type ConfigurationVariant = {
   key: string; label: string; href: string; engine: string; format: string;
@@ -48,7 +48,7 @@ function hostRequirements(r: Recipe): string {
 export function configurationRows(selected: Recipe[]): ConfigurationRow[] {
   const groups = new Map<string, ConfigurationRow>();
   for (const r of selected) {
-    const c = cards.find((c) => c.id === r.card);
+    const c = card(r.card);
     if (!c) continue;
     const setup = setupOf(r);
     const id = `${r.model}/${hardwareConfigId(r)}`;

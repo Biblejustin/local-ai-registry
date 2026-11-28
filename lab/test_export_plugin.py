@@ -27,6 +27,7 @@ class ExportFlagsTest(unittest.TestCase):
         self.assertFalse(exportable({"kind": "host"}))
         self.assertFalse(exportable({"machines": 2}))
         self.assertFalse(exportable({"build": "x"}))
+        self.assertFalse(exportable({"companion": {"hw": "intel-arc-pro-b70-32gb", "cards": 1, "image": "x@sha256:" + "a" * 64}}))
 
 
 def recipe(path):

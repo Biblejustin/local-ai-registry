@@ -137,31 +137,32 @@ def mounts_ok(e):
     return not out or not any(out == w["mountPath"] or out.startswith(w["mountPath"].rstrip("/") + "/") for w in e["weights"])
 
 
-def describable(r):
+def describable(r, meta=None):
     """The plugin can describe a recipe whose launch has a plugin block or template defaults, or whose model and build
     registry/models.json knows (and whose image is pinned by digest)."""
     p = lab.profile(r["engine"])
     if "defaults" in p or "plugin" in p:
         return True
-    meta = json.loads((ROOT / "registry" / "models.json").read_text(encoding="utf-8"))
+    meta = meta if meta is not None else json.loads((ROOT / "registry" / "models.json").read_text(encoding="utf-8"))
+    L = r.get("launch") or lab.render(r)
     return (r.get("model") in meta["models"] and r.get("weights") in meta["builds"] and "@sha256:" in (p.get("image") or "")
-            and bool(lab.render(r)["weights"]))
+            and bool(L["weights"]))
 
 
-def eligible(r, version, vram_gb=None):  # vram_gb: one card's memory, None reads registry/cards
+def eligible(r, version, vram_gb=None, meta=None):  # vram_gb: one card's memory, None reads registry/cards
     L = r["launch"]
     # a recipe its publisher reported (not yet run by the lab) is exported too, flagged `reported`, so the plugin can
     # say so; one withdrawn is not
     # a launch with a companion (a second container on a card of another kind) is a candidate until a plugin runs it
     if not exportable(L) or r["proof"][0].get("withdrawn"):
         return False
-    if not describable(r):
+    if not describable(r, meta):
         return False
     # the KV floor (lab.KV_FLOOR_TOKENS): on a setup over lab.KV_FLOOR_ABOVE_VRAM_GB, a recipe holding less KV than
     # that stays in the registry with its evidence but never reaches the plugin
-    if lab.below_kv_floor(r, vram_gb=vram_gb):
+    if lab.below_kv_floor(r, L, vram_gb=vram_gb):
         return False
-    if (lab.render(r).get("image") or "").rpartition("@")[2] in NO_PROVENANCE:
+    if (L.get("image") or "").rpartition("@")[2] in NO_PROVENANCE:
         return False
     if L.get("prepare") or L.get("resources"):
         if version == 2:
@@ -175,48 +176,47 @@ def eligible(r, version, vram_gb=None):  # vram_gb: one card's memory, None read
 def build(version=2):
     cat = json.loads((ROOT / "dist" / "catalog.json").read_text(encoding="utf-8"))
     meta = json.loads((ROOT / "registry" / "models.json").read_text(encoding="utf-8"))
+    entries = {}
+
+    def get_entry(k):
+        if k not in entries:
+            entries[k] = entry(k, cat["recipes"][k], meta)
+        return entries[k]
+
     hw = {}
     for card, c in sorted(cat["cards"].items()):
         vram = c.get("vram_gb") or 0  # one card's memory, for the KV floor (times the launch's cards)
-        # the plugin runs one plain container per card: no host programs, host IPC or networking, or several machines
-        # the picks, then any other recipe that states host `needs`: the plugin offers those only on a machine with
-        # that much free RAM and disk (e.g. experts offloaded to system RAM, tables read from NVMe)
-        keys = c["picks"] + [k for k in c["more"] if cat["recipes"][k]["launch"].get("needs")]
-        ok = [k for k in keys if exportable(cat["recipes"][k]["launch"])
-              and not cat["recipes"][k]["proof"][0].get("reported")  # the plugin runs one plain container we have checked
-              and ("defaults" in lab.profile(cat["recipes"][k]["engine"]) or "plugin" in lab.profile(cat["recipes"][k]["engine"]))]  # and can describe
-        # and, from the rest, the first recipe of each model the picks do not have, so every validated model reaches the
-        # card once and the list does not repeat a model in a weaker setting
-        # then each multi-card setup on one machine, its own picks and models the same way
-        multi = [k for st in c.get("setups", []) if st["cards"] > 1 and st["machines"] == 1 for k in st["picks"] + st["more"]]
-        ok = [k for k in c["picks"] if eligible(cat["recipes"][k], version, vram)]
-        names = {entry(k, cat["recipes"][k], meta)["name"] for k in ok}
+        # the picks, then any other recipe that states host `needs` (RAM, disk) or is the first recipe of a model the
+        # picks do not have, then each multi-card setup on one machine the same way
+        ok = [k for k in c["picks"] if eligible(cat["recipes"][k], version, vram, meta)]
+        names = {get_entry(k)["name"] for k in ok}
         for k in c["more"]:
             r = cat["recipes"][k]
-            if not eligible(r, version, vram):
+            if not eligible(r, version, vram, meta):
                 continue
-            name = entry(k, r, meta)["name"]
+            name = get_entry(k)["name"]
             if r["launch"].get("needs") or name not in names:
                 ok.append(k)
                 names.add(name)
+        multi = [k for st in c.get("setups", []) if st["cards"] > 1 and st["machines"] == 1 for k in st["picks"] + st["more"]]
         for n in sorted({cat["recipes"][k]["launch"].get("cards", 1) for k in multi}):
             seen = set()
             for k in multi:
                 r = cat["recipes"][k]
-                if r["launch"].get("cards", 1) != n or k in ok or not eligible(r, version, vram):
+                if r["launch"].get("cards", 1) != n or k in ok or not eligible(r, version, vram, meta):
                     continue
-                name = entry(k, r, meta)["name"]
+                name = get_entry(k)["name"]
                 if name not in seen:
                     ok.append(k)
                     seen.add(name)
         # the plugin refuses a whole catalog for one recipe it cannot take, so none such leaves here
-        ok = [k for k in ok if mounts_ok(entry(k, cat["recipes"][k], meta))]
+        ok = [k for k in ok if mounts_ok(get_entry(k))]
         if ok:
-            hw[card] = {"match": c["match"], "recipes": [dict(entry(k, cat["recipes"][k], meta), **({"reported": True} if cat["recipes"][k]["proof"][0].get("reported") else {}),
+            hw[card] = {"match": c["match"], "recipes": [dict(get_entry(k), **({"reported": True} if cat["recipes"][k]["proof"][0].get("reported") else {}),
                                                               **aa(cat["recipes"][k], meta)) for k in ok]}
             for e in hw[card]["recipes"]:  # a needs block reaches the plugin only in the checked shape
                 if "resources" in e:
-                    e["launch"]["resources"] = e.pop("resources")
+                    e["launch"] = {**e["launch"], "resources": e.pop("resources")}
                 if "needs" in e:
                     lab.check_needs(e["needs"])
     head = {"schemaVersion": f"omarchy-local-ai/recipes/{version}", "registryCommit": None, "generatedAt": None, "gateway": {"image": GATEWAY}}

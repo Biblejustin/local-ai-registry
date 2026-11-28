@@ -76,6 +76,20 @@ def pin(p):
     return hashlib.sha256(json.dumps({**{k: p.get(k) for k in keys}, **topology, "config": config_text(p)}, sort_keys=True).encode()).hexdigest()
 
 
+_JSON_CACHE = {}
+
+
+def _read_json(path):
+    """Read and parse a JSON file, cached by (path, mtime_ns, size) so edits and patched dirs never go stale."""
+    st = path.stat()
+    key = (str(path), st.st_mtime_ns, st.st_size)
+    val = _JSON_CACHE.get(key)
+    if val is None:
+        val = json.loads(path.read_text(encoding="utf-8"))
+        _JSON_CACHE[key] = val
+    return val
+
+
 def profile_file(name):
     """A template profile in engines/, or a frozen launch in launches/."""
     return next((d / name for d in (ENGINES, LAUNCHES) if (d / name).exists()), ENGINES / name)
@@ -84,7 +98,7 @@ def profile_file(name):
 def profile(ref):
     """`tabbyapi-exl3@0f83e6198dc3` -> the profile, checked against the digest prefix."""
     name, _, digest = ref.partition("@")
-    p = json.loads(profile_file(f"{name}.json").read_text(encoding="utf-8"))
+    p = _read_json(profile_file(f"{name}.json"))
     if p.get("kind") == "host" or not p.get("image"):  # a host program, or an image built from a pinned commit
         if p.get("kind") == "host":
             stale = digest and digest != "host" and not pin(p).startswith(digest)
@@ -103,7 +117,7 @@ def card(card_id):
     found = list(CARDS.glob(f"*/{card_id}.json"))
     if not found:
         raise SystemExit(f"unknown card {card_id}")
-    return json.loads(found[0].read_text(encoding="utf-8"))
+    return _read_json(found[0])
 
 
 def recipe_path(r, launch):
@@ -327,9 +341,9 @@ def strip_diffusion_sampling(payload, model=None):
     return {k: v for k, v in payload.items() if k not in DIFFUSION_UNSUPPORTED_SAMPLING}
 
 
-def chat(endpoint, model, messages, **kw):
+def chat(endpoint, model, messages, timeout=3600, **kw):
     req_body = strip_diffusion_sampling({"model": model, "messages": messages, "temperature": 0.6, **kw}, model)
-    out, secs = call(endpoint, "/v1/chat/completions", req_body)
+    out, secs = call(endpoint, "/v1/chat/completions", req_body, timeout=timeout)
     c, u = out["choices"][0], dict(out.get("usage") or {})
     if (out.get("timings") or {}).get("peak_memory"):  # mlx-vlm: the allocator's peak for this request, decimal GB
         u["peak_memory_gb"] = out["timings"]["peak_memory"]
@@ -412,11 +426,50 @@ def gates(endpoint, launch, ev=None):
     return passed, proof, evidence
 
 
+def select_served(models_data, launch):
+    """Pick the model id matching the launch when /v1/models lists several (e.g. oMLX / mlx-vlm scanning HF cache)."""
+    ids = [m["id"] for m in models_data if isinstance(m, dict) and m.get("id")]
+    if len(ids) <= 1:
+        return ids[0]
+    argv = [str(a) for part in ("args", "command") if isinstance(launch.get(part), list) for a in launch[part]]
+    hints = []
+    for i, a in enumerate(argv):
+        for flag in ("--served-model-name", "--alias", "--model-name", "--model-id"):
+            if a == flag and i + 1 < len(argv):
+                hints.append(argv[i + 1])
+            elif a.startswith(flag + "="):
+                hints.append(a.split("=", 1)[1])
+    cfg_text = (launch.get("config") or {}).get("text") or ""
+    m = re.search(r"^\s*model_name:\s*['\"]?([^\s'\"]+)", cfg_text, re.MULTILINE)
+    if m:
+        hints.append(m.group(1))
+    ws = launch.get("weights") or []
+    ws = ws if isinstance(ws, list) else [ws]
+    for w in ws:
+        if isinstance(w, dict):
+            if w.get("at"):
+                hints.append(w["at"].rstrip("/").rsplit("/", 1)[-1])
+            if w.get("repo"):
+                hints.append(w["repo"])
+                hints.append(w["repo"].rsplit("/", 1)[-1])
+    for h in hints:
+        for mid in ids:
+            if mid == h:
+                return mid
+    for h in hints:
+        hl = h.lower()
+        for mid in ids:
+            ml = mid.lower()
+            if ml == hl or ml.rsplit("/", 1)[-1] == hl or hl.rsplit("/", 1)[-1] == ml.rsplit("/", 1)[-1]:
+                return mid
+    return ids[0]
+
+
 def run_gates(endpoint, launch, ev, ok):
     """The gates themselves; `gates` keeps the evidence when one of them blows up."""
     ev["spec"] = speculation(launch)  # first, so a run that blows up still says what it ran
     models, _ = call(endpoint, "/v1/models", timeout=30)
-    served = models["data"][0]["id"]
+    served = select_served(models["data"], launch)
     ok["load"] = True
     # chat: an answer that ends by itself
     c, u, _ = chat(endpoint, served, [{"role": "user", "content": "Name three primary colors, comma separated."}])
@@ -457,11 +510,12 @@ def run_gates(endpoint, launch, ev, ok):
     target = int(launch["ctx"] * 0.85)
     filler = " ".join(f"Line {i}: the archive notes that shipment {i * 7 % 997} left dock {i % 13} on schedule." for i in range(target // 24))  # ~23.6 tokens a line (measured: 32,834 tokens from 1,473 lines)
     prompt = filler + " The access code for the vault is 58213. " + "Anything else is routine."
+    ctx_timeout = max(3600, int(target / 20))  # slow-prefill cards (e.g. 200k ctx at ~35 tok/s) need more than 1 h
     dropped = []  # seconds each dropped attempt ran before its connection dropped
     for attempt in range(3):  # a rented host's port mapping can silently drop a connection that stays idle for
         started = time.monotonic()
         try:                  # minutes while the prompt is prefilled; the retried prompt answers from the server's
-            c, u, secs = chat(endpoint, served, [{"role": "user", "content": prompt + "\n\nWhat is the access code for the vault? Reply with only the code."}])
+            c, u, secs = chat(endpoint, served, [{"role": "user", "content": prompt + "\n\nWhat is the access code for the vault? Reply with only the code."}], timeout=ctx_timeout)
             break             # prefix cache, so the retry costs seconds, and the gate is the same check
         except urllib.error.HTTPError as e:  # the server answered: it refused the prompt, a retry would refuse it again
             raise SystemExit(f"context gate: the server refused the prompt: {e.code} {e.reason}") from e
@@ -633,6 +687,45 @@ def proxy_proof(args, recipe, launch, evidence):
 
 
 # ----------------------------------------------------------------------------- commands
+def _run_and_record(args, recipe, launch, slug):
+    """Run all six gates against a rented box or --on endpoint, save the run record, and always destroy any rented box."""
+    stop = lambda: None
+    if args.proxy_gpu and args.on != "endpoint":
+        args.proxy_vram = proxy_memory(args, args.card)  # a rented twin has the card's own memory
+    if args.on == "endpoint":
+        endpoint, where = args.endpoint.rstrip("/"), {"on": "owner", "gpu": args.gpu}
+    else:
+        endpoint, where, stop = rented(recipe, launch, args)
+    evidence, failure = {}, None
+    try:
+        passed, proof, evidence = gates(endpoint, launch, evidence)
+    except BaseException as e:  # the run could not go on: the record is written anyway, and the error is not masked
+        passed, proof = False, {"gates": "", "tps": 0, "prefill": None, "served": None}
+        evidence.setdefault("ok", {})
+        evidence["error"] = repr(e)
+        failure = e
+    at = dt.datetime.now(dt.timezone.utc)
+    proof = {"at": at.strftime("%Y-%m-%d"), "on": where["on"], "gpu": where.get("gpu"), "launch_sha256": launch_hash(launch), **proof}
+    if args.proxy_gpu:
+        # a twin card: the proof says what the run really was, and a run that does not fit the card writes no recipe
+        note, fits = proxy_proof(args, recipe, launch, evidence)
+        proof["proxy"] = note
+        passed = passed and fits
+    try:
+        RUNS.mkdir(parents=True, exist_ok=True)
+        run = {"recipe": recipe, "where": {k: v for k, v in where.items() if k not in ("handle", "provider")}, "passed": passed, "proof": proof, "evidence": evidence, "launch_config_sha256": (launch["config"] or {}).get("sha256")}
+        text = json.dumps(run, indent=1, ensure_ascii=False)
+        run_path = RUNS / f"{args.card}.{slug}.{at.strftime('%Y%m%dT%H%M%S')}.json"
+        run_path.write_text(text + "\n", encoding="utf-8")
+    finally:
+        stop()  # the box is destroyed after the record is written: a destroy failure cannot lose a paid run
+    proof["log"] = "sha256:" + hashlib.sha256(text.encode()).hexdigest()[:16]
+    log(f"gates: {evidence['ok']}  decode {proof['tps']} tok/s, prefill {proof['prefill']} tok/s; evidence {run_path.relative_to(ROOT)}")
+    if failure is not None:
+        raise failure
+    return passed, proof
+
+
 def cmd_try(args):
     if not re.fullmatch(r"[\w.-]+/[\w.-]+@[0-9a-f]{40}", args.weights):
         raise SystemExit("weights must be <repo>@<40-hex revision>")
@@ -655,43 +748,9 @@ def cmd_try(args):
     if args.dry_run:
         print(json.dumps({"recipe": recipe, "launch": launch}, indent=2))
         return 0
-    stop = lambda: None
     if launch.get("kind") == "host" and args.on != "endpoint":
         raise SystemExit(f"{p['id']} runs on the owner's machine, not a rented container: start it and use --on endpoint")
-    if args.proxy_gpu and args.on != "endpoint":
-        args.proxy_vram = proxy_memory(args, args.card)  # a rented twin has the card's own memory
-    if args.on == "endpoint":
-        endpoint, where = args.endpoint.rstrip("/"), {"on": "owner", "gpu": args.gpu}
-    else:
-        endpoint, where, stop = rented(recipe, launch, args)
-    evidence, failure = {}, None
-    try:
-        passed, proof, evidence = gates(endpoint, launch, evidence)
-    except BaseException as e:  # the run could not go on: the record is written anyway, and the error is not masked
-        passed, proof = False, {"gates": "", "tps": 0, "prefill": None, "served": None}
-        evidence.setdefault("ok", {})
-        evidence["error"] = repr(e)
-        failure = e
-    at = dt.datetime.now(dt.timezone.utc)
-    proof = {"at": at.strftime("%Y-%m-%d"), "on": where["on"], "gpu": where.get("gpu"), "launch_sha256": launch_hash(launch), **proof}
-    if args.proxy_gpu:
-        # a twin card: the proof says what the run really was, and a run that does not fit the card writes no recipe
-        note, fits = proxy_proof(args, recipe, launch, evidence)
-        proof["proxy"] = note
-        passed = passed and fits
-    slug = f"{args.model}.{p['id']}.{launch['ctx'] // 1024}k"
-    try:
-        RUNS.mkdir(parents=True, exist_ok=True)
-        run = {"recipe": recipe, "where": {k: v for k, v in where.items() if k not in ("handle", "provider")}, "passed": passed, "proof": proof, "evidence": evidence, "launch_config_sha256": (launch["config"] or {}).get("sha256")}
-        text = json.dumps(run, indent=1, ensure_ascii=False)
-        run_path = RUNS / f"{args.card}.{slug}.{at.strftime('%Y%m%dT%H%M%S')}.json"
-        run_path.write_text(text + "\n", encoding="utf-8")
-    finally:
-        stop()  # the box is destroyed after the record is written: a destroy failure cannot lose a paid run
-    proof["log"] = "sha256:" + hashlib.sha256(text.encode()).hexdigest()[:16]
-    log(f"gates: {evidence['ok']}  decode {proof['tps']} tok/s, prefill {proof['prefill']} tok/s; evidence {run_path.relative_to(ROOT)}")
-    if failure is not None:
-        raise failure
+    passed, proof = _run_and_record(args, recipe, launch, f"{args.model}.{p['id']}.{launch['ctx'] // 1024}k")
     if not passed:
         log("FAILED: no recipe written")
         return 1
@@ -712,39 +771,7 @@ def cmd_convert(args):
     f = files[0]
     recipe = json.loads(f.read_text(encoding="utf-8"))
     launch = render(recipe)
-    stop = lambda: None
-    if args.proxy_gpu and args.on != "endpoint":
-        args.proxy_vram = proxy_memory(args, args.card)  # a rented twin has the card's own memory
-    if args.on == "endpoint":
-        endpoint, where = args.endpoint.rstrip("/"), {"on": "owner", "gpu": args.gpu}
-    else:
-        endpoint, where, stop = rented(recipe, launch, args)
-    evidence, failure = {}, None
-    try:
-        passed, proof, evidence = gates(endpoint, launch, evidence)
-    except BaseException as e:  # the run could not go on: the record is written anyway, and the error is not masked
-        passed, proof = False, {"gates": "", "tps": 0, "prefill": None, "served": None}
-        evidence.setdefault("ok", {})
-        evidence["error"] = repr(e)
-        failure = e
-    at = dt.datetime.now(dt.timezone.utc)
-    proof = {"at": at.strftime("%Y-%m-%d"), "on": where["on"], "gpu": where.get("gpu"), "launch_sha256": launch_hash(launch), **proof}
-    if args.proxy_gpu:
-        # the proxy proof (a twin card's own memory, and the peak that was measured) and the record that a failed
-        # run still leaves behind: both hold here, the proof says what the run was, the record says what happened
-        note, fits = proxy_proof(args, recipe, launch, evidence)
-        proof["proxy"] = note
-        passed = passed and fits
-    try:
-        RUNS.mkdir(parents=True, exist_ok=True)
-        text = json.dumps({"recipe": recipe, "where": {k: v for k, v in where.items() if k not in ("handle", "provider")}, "passed": passed, "proof": proof, "evidence": evidence}, indent=1, ensure_ascii=False)
-        (RUNS / f"{args.card}.{f.stem}.{at.strftime('%Y%m%dT%H%M%S')}.json").write_text(text + "\n", encoding="utf-8")
-    finally:
-        stop()  # the box is destroyed after the record is written: a destroy failure cannot lose a paid run
-    proof["log"] = "sha256:" + hashlib.sha256(text.encode()).hexdigest()[:16]
-    log(f"gates: {evidence['ok']}  decode {proof['tps']} tok/s, prefill {proof['prefill']} tok/s")
-    if failure is not None:
-        raise failure
+    passed, proof = _run_and_record(args, recipe, launch, f.stem)
     if not passed:
         log("FAILED: the legacy recipe stays legacy")
         return 1

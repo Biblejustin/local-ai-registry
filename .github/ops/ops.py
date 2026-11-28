@@ -126,7 +126,8 @@ def main():
     plugin["devAhead"] = ghjson("api", f"repos/{PLUGIN}/compare/main...dev")["ahead_by"]
     plugin["version"] = json.loads(gh("api", f"repos/{PLUGIN}/contents/manifest.json", "-H",
                                       "Accept: application/vnd.github.raw"))["version"]
-    cat = json.load(open("plugin/v3/recipes.json"))
+    with open("plugin/v3/recipes.json", encoding="utf-8") as f:
+        cat = json.load(f)
     ops = {
         "updated": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "bounty": {"month": month, "cap": CAP, "owed": cur["owed"], "accepted": cur["accepted"],
@@ -140,7 +141,8 @@ def main():
         "marketplace": market(),
         "devices": {"kinds": len(cat["hardware"]), "recipes": sum(len(h["recipes"]) for h in cat["hardware"].values())},
     }
-    json.dump(ops, open(os.path.join(OUT, "ops.json"), "w"), indent=1)
+    with open(os.path.join(OUT, "ops.json"), "w", encoding="utf-8") as f:
+        json.dump(ops, f, indent=1)
 
     md = ["Recipe bounties: who claimed, who submitted, what was accepted. Updated every hour; rules in "
           "[BOUNTIES.md](https://github.com/sybil-solutions/.github/blob/main/BOUNTIES.md); dashboard at "
@@ -157,7 +159,8 @@ def main():
     if months:
         md += ["", "| Month | Accepted | Owed |", "|---|---|---|"]
         md += [f"| {m} | {months[m]['accepted']} | ${months[m]['owed']} |" for m in sorted(months)]
-    open(os.path.join(OUT, "ledger.md"), "w").write("\n".join(md) + "\n")
+    with open(os.path.join(OUT, "ledger.md"), "w", encoding="utf-8") as f:
+        f.write("\n".join(md) + "\n")
     print(json.dumps({k: ops["bounty"][k] for k in ("month", "owed", "accepted", "open", "claims", "prsOpen")}))
 
 

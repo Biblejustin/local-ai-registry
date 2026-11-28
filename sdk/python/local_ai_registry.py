@@ -107,14 +107,14 @@ def _host_steps(l):
     return out
 
 
-def _pairs(a):
+def _pairs(a, fmt=_q):
     """Arguments as `--flag value` pairs, one per line."""
     args, i = [], 0
     while i < len(a):
         if a[i].startswith("-") and i + 1 < len(a) and not a[i + 1].startswith("-"):
-            args.append(f"{a[i]} {_q(a[i + 1])}"); i += 2
+            args.append(f"{a[i]} {fmt(a[i + 1])}"); i += 2
         else:
-            args.append(_q(a[i])); i += 1
+            args.append(fmt(a[i])); i += 1
     return args
 
 
@@ -150,13 +150,7 @@ def steps(r):
         mounts.append(f"-v $PWD/{name}.yml:{l['config']['at']}:ro")
     e = l.get("entrypoint")
     ep = e if isinstance(e, list) else [e] if e else []
-    args, a = [], ep[1:] + l["args"]
-    i = 0
-    while i < len(a):
-        if a[i].startswith("-") and i + 1 < len(a) and not a[i + 1].startswith("-"):
-            args.append(f"{a[i]} {_value(a[i + 1])}"); i += 2
-        else:
-            args.append(_value(a[i])); i += 1
+    args = _pairs(ep[1:] + l["args"], _value)
     if l.get("prepare"):
         options = list(l.get('flags') or []) + _resources(l) + ([f"--shm-size {l['shm']}"] if l.get('shm') else [])
         options += [f"-e {k}={_value(v)}" for k, v in (l.get('env') or {}).items() if k != 'NVIDIA_VISIBLE_DEVICES']

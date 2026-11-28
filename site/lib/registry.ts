@@ -29,6 +29,9 @@ export const cards: Card[] = Object.entries(raw.cards)
   .map(([id, c]) => ({ id, ...c }))
   .sort((a, b) => vendorRank(a.vendor) - vendorRank(b.vendor) || b.vram_gb - a.vram_gb || a.name.localeCompare(b.name));
 export const recipes: Recipe[] = Object.entries(raw.recipes).map(([key, r]) => ({ key, slug: key.split("/").pop()!, ...r }));
+const cardsById = new Map(cards.map((c) => [c.id, c]));
+const recipesByKey = new Map(recipes.map((r) => [r.key, r]));
+const recipesByCardSlug = new Map(recipes.map((r) => [`${r.card}/${r.slug}`, r]));
 
 function vendorRank(v: string) { return ["nvidia", "amd", "intel", "apple", "cpu"].indexOf(v); }
 
@@ -46,9 +49,9 @@ export const bare = Object.entries(specsById).filter(([id]) => !raw.cards[id]).m
 
 export const VENDOR: Record<string, string> = { nvidia: "NVIDIA", amd: "AMD", intel: "Intel", apple: "Apple", cpu: "CPU" };
 export const memoryLabel = (c: { vendor: string; vram_gb: number }) => c.vendor === "cpu" ? "System RAM" : `${c.vram_gb} GB`;
-export const card = (id: string) => cards.find((c) => c.id === id);
-export const recipe = (cardId: string, slug: string) => recipes.find((r) => r.card === cardId && r.slug === slug);
-const byKey = (keys: string[]) => keys.map((k) => recipes.find((r) => r.key === k)!).filter(Boolean);
+export const card = (id: string) => cardsById.get(id);
+export const recipe = (cardId: string, slug: string) => recipesByCardSlug.get(`${cardId}/${slug}`);
+const byKey = (keys: string[]) => keys.map((k) => recipesByKey.get(k)).filter((r): r is Recipe => r !== undefined);
 export const picks = (c: Card | Setup) => byKey(c.picks);
 export const more = (c: Card | Setup) => byKey(c.more ?? []);
 /** The setup a card leads with: one card, or its smallest group when it only runs in one (4 × CMP 170HX). */
@@ -80,7 +83,7 @@ export function status(r: Recipe) {
 export const gates = (r: Recipe) => new Set(r.proof[0].gates.split(" "));
 /** What a recipe can do: what our checks proved, or for a reported one what its publisher says. */
 export const claims = (r: Recipe) => new Set(r.proof[0].reported ? (r.proof[0].claims ?? "").split(" ") : r.proof[0].gates.split(" "));
-export const short = (name: string) => name.replace(/^(NVIDIA|AMD|Intel)\s+/i, "").replace(/^GeForce\s+/i, "").replace(/\s+(Generation|GPU)\b/gi, "").replace(/Laptop$/, "Laptop").trim();
+export const short = (name: string) => name.replace(/^(NVIDIA|AMD|Intel)\s+/i, "").replace(/^GeForce\s+/i, "").replace(/\s+(Generation|GPU)\b/gi, "").trim();
 export const cardName = (id: string) => (card(id) ? short(card(id)!.name) : id);
 export const ctxLabel = (n: number) => (n >= 1024 ? `${Math.round(n / 1024)}K` : `${n}`);
 export const fmtDate = (d: string) => (d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }) : "");

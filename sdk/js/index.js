@@ -51,11 +51,11 @@ const resources = (l) => {
     ...(r.memlockUnlimited ? ['--ulimit memlock=-1:-1'] : []), ...(r.ipcLock ? ['--cap-add IPC_LOCK'] : [])];
 };
 
-const pairs = (a) => {
+const pairs = (a, fmt = q) => {
   const args = [];
   for (let i = 0; i < a.length; i++) {
     const x = a[i], y = a[i + 1];
-    if (x.startsWith("-") && y !== undefined && !y.startsWith("-")) { args.push(`${x} ${q(y)}`); i++; } else args.push(q(x));
+    if (x.startsWith("-") && y !== undefined && !y.startsWith("-")) { args.push(`${x} ${fmt(y)}`); i++; } else args.push(fmt(x));
   }
   return args;
 };
@@ -84,8 +84,7 @@ export function steps(r) {
   let image = l.image;
   if (l.build) {  // an image built from the source's Dockerfile at a pinned commit
     image = `local-ai/${name}`;
-    const value = (s) => /^\$\{[A-Z_][A-Z0-9_]*\}$/.test(s) ? `"${s}"` : q(s);
-const files = (l.build.dockerfile ?? "Dockerfile").split(" + ");
+    const files = (l.build.dockerfile ?? "Dockerfile").split(" + ");
     out.push({ title: "Build the image", code: [install(`https://github.com/${l.build.repo}/tree/${l.build.commit}`), ...files.map((d) => `docker build -t ${image} -f ${d} .`)].join("\n") });
   }
   const prepared = `~/models/${name}-prepared-${image.slice(-12)}`;
@@ -101,11 +100,7 @@ const files = (l.build.dockerfile ?? "Dockerfile").split(" + ");
     mounts.push(`-v $PWD/${name}.yml:${l.config.at}:ro`);
   }
   const ep = Array.isArray(l.entrypoint) ? l.entrypoint : l.entrypoint ? [l.entrypoint] : [];
-  const all = [...ep.slice(1), ...l.args], args = [];
-  for (let i = 0; i < all.length; i++) {
-    const a = all[i], b = all[i + 1];
-    if (a.startsWith("-") && b !== undefined && !b.startsWith("-")) { args.push(`${a} ${value(b)}`); i++; } else args.push(value(a));
-  }
+  const args = pairs([...ep.slice(1), ...l.args], value);
   if (l.prepare) {
     const options = [...(l.flags ?? []), ...resources(l), ...(l.shm ? [`--shm-size ${l.shm}`] : []),
       ...Object.entries(l.env ?? {}).filter(([k]) => k !== 'NVIDIA_VISIBLE_DEVICES').map(([k, v]) => `-e ${k}=${value(v)}`), ...(ep.length ? [`--entrypoint ${q(ep[0])}`] : [])];
