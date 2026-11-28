@@ -1,0 +1,78 @@
+{
+ "recipe": {
+  "model": "qwen3.8-27b",
+  "weights": "gcoli/Qwen3.8-27B-oQ4e-mtp@c41ed507f1b16320942a1e9ce340e71d2692dee2",
+  "engine": "omlx-qwen3.8-27b-oq4e-mtp3-200k@ec2227d63d3a",
+  "set": {},
+  "card": "apple-m5-max-128gb"
+ },
+ "where": {
+  "on": "owner",
+  "gpu": "Apple M5 Max 128GB (40-core GPU)"
+ },
+ "passed": true,
+ "proof": {
+  "at": "2026-11-28",
+  "on": "owner",
+  "gpu": "Apple M5 Max 128GB (40-core GPU)",
+  "launch_sha256": "520b522f74a5c4f9a64f0cf1f5c8a6960470eca4d174dd4ca7cd47583e7eba7e",
+  "gates": "load chat reasoning tools context speed",
+  "tps": 40.6,
+  "prefill": 191,
+  "served": "gcoli_Qwen3.8-27B-oQ4e-mtp"
+ },
+ "evidence": {
+  "ok": {
+   "load": true,
+   "chat": true,
+   "reasoning": true,
+   "tools": true,
+   "context": true,
+   "speed": true
+  },
+  "spec": null,
+  "chat": {
+   "content": "red, yellow, blue",
+   "finish": "stop"
+  },
+  "reasoning": {
+   "thinking_chars": 223,
+   "content": "130"
+  },
+  "tools": {
+   "call": [
+    {
+     "id": "call_538c220a",
+     "type": "function",
+     "function": {
+      "name": "get_weather",
+      "arguments": "{\"city\": \"Paris\"}"
+     }
+    }
+   ],
+   "reply": "Here's the current weather in Paris:\n\n- **Temperature:** 17°C\n- **Sky:** Overcast\n\nThe code returned by the tool is: **6b6bdaa4**",
+   "code": "6b6bdaa4",
+   "finish": "stop",
+   "calls_again": 0,
+   "thinking_chars": 115
+  },
+  "context": {
+   "prompt_tokens": 162732,
+   "seconds": 853.7,
+   "content": "58213"
+  },
+  "speed": {
+   "window_s": 30.0,
+   "tokens_in_window": 1219,
+   "tokens_total": 12191,
+   "seconds_total": 223.0,
+   "counted": "tokenizer",
+   "accounting": "client tokens over the first 30 s after the first token; speculative drafts are not counted as accepted"
+  },
+  "prefill": {
+   "value": 191,
+   "source": "context gate: prompt tokens / the whole request's seconds (queue + prefill + the short answer), cold unique filler"
+  }
+ },
+ "launch_config_sha256": "db4687212466b8d01b1a08606a0f58d6b49255bc3604512d02c7fe77168c7087"
+}

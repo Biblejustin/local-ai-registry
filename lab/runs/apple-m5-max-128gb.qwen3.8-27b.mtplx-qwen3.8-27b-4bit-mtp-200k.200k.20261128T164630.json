@@ -1,0 +1,78 @@
+{
+ "recipe": {
+  "model": "qwen3.8-27b",
+  "weights": "Youssofal/Qwen3.8-27B-MTPLX-Bare-Speed@b59d7002368575f08a58ba0d26686b53a9c162d6",
+  "engine": "mtplx-qwen3.8-27b-4bit-mtp-200k@95e52b5404e3",
+  "set": {},
+  "card": "apple-m5-max-128gb"
+ },
+ "where": {
+  "on": "owner",
+  "gpu": "Apple M5 Max 128GB (40-core GPU)"
+ },
+ "passed": true,
+ "proof": {
+  "at": "2026-11-28",
+  "on": "owner",
+  "gpu": "Apple M5 Max 128GB (40-core GPU)",
+  "launch_sha256": "ad2b76f3021ea052651b91eea08c3ae3e5a8026f8f13e3e4490e8279bdfbb89c",
+  "gates": "load chat reasoning tools context speed",
+  "tps": 39.7,
+  "prefill": 347,
+  "served": "qwen38-27b-mtplx-4bit"
+ },
+ "evidence": {
+  "ok": {
+   "load": true,
+   "chat": true,
+   "reasoning": true,
+   "tools": true,
+   "context": true,
+   "speed": true
+  },
+  "spec": null,
+  "chat": {
+   "content": "Red, blue, yellow",
+   "finish": "stop"
+  },
+  "reasoning": {
+   "thinking_chars": 292,
+   "content": "130"
+  },
+  "tools": {
+   "call": [
+    {
+     "id": "call_5b409beb",
+     "type": "function",
+     "function": {
+      "name": "get_weather",
+      "arguments": "{\"city\":\"Paris\"}"
+     }
+    }
+   ],
+   "reply": "Here's the current weather in **Paris**:\n\n- **Temperature:** 17°C\n- **Sky:** Overcast\n\nAnd the code it gave me: **aa40b42a**",
+   "code": "aa40b42a",
+   "finish": "stop",
+   "calls_again": 0,
+   "thinking_chars": 183
+  },
+  "context": {
+   "prompt_tokens": 166625,
+   "seconds": 479.9,
+   "content": "58213"
+  },
+  "speed": {
+   "window_s": 27.8,
+   "tokens_in_window": 1103,
+   "tokens_total": 1103,
+   "seconds_total": 28.3,
+   "counted": "tokenizer",
+   "accounting": "client tokens over the first 30 s after the first token; speculative drafts are not counted as accepted"
+  },
+  "prefill": {
+   "value": 347,
+   "source": "context gate: prompt tokens / the whole request's seconds (queue + prefill + the short answer), cold unique filler"
+  }
+ },
+ "launch_config_sha256": null
+}
