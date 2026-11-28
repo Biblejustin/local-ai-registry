@@ -1481,6 +1481,10 @@
     "ggml-org/Inkling-2-Mini-GGUF@db61c5b492a6a034d986328d28274af0a439aa6c": {
       "format": "GGUF · IQ4_NL",
       "size_gb": 17.63
+    },
+    "mlx-community/Inkling-2-Mini-oQ4e-mtp@3eea042751cd296b7266628a8342c1749242e1fe": {
+      "format": "MLX · oQ4e 4-bit (NVFP4 + affine 4/8-bit), native DSpark MTP",
+      "size_gb": 16.85
     }
   }
 }
