@@ -543,8 +543,8 @@
       "released": "2026-10-23",
       "reasoning": true,
       "vision": false,
-      "about": "Liquid AI's 1.7B tri-hybrid model, post-trained for local agents and tool use, with a 256K window.",
-      "good_for": "Local agents, tool calling and structured output on small cards",
+      "about": "Liquid AI's 1.7B hybrid model with a 256K context: it thinks before it answers and calls tools.",
+      "good_for": "Fast tool calls and long context on small cards",
       "logo": "hf",
       "hf": "LiquidAI/LFM3-1.7B"
     },
@@ -821,17 +821,6 @@
       "good_for": "Fast chat and tool calls at 128K",
       "logo": "hf",
       "hf": "LiquidAI/LFM2.5-24B-A2B"
-    },
-    "lfm3-1.7b": {
-      "family": "lfm",
-      "name": "LFM3-1.7B",
-      "released": "2026-10-23",
-      "reasoning": true,
-      "vision": false,
-      "about": "Liquid AI's 1.7B hybrid model with a 256K context: it thinks before it answers and calls tools.",
-      "good_for": "Fast tool calls and long context on small cards",
-      "logo": "hf",
-      "hf": "LiquidAI/LFM3-1.7B"
     },
     "nemotron-3.5-bolt-e4b": {
       "family": "nemotron",
