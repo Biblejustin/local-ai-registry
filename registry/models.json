@@ -1507,6 +1507,10 @@
     "DavidAU/Qwen3.5-9B-The-Defiant-Fable-Uncensored-Heretic-NEO-IMATRIX-MAX-MTP-GGUF@4d47954f2ef8277567a20508dd3f88def5404455": {
       "format": "GGUF · Q6_K, BF16 head",
       "size_gb": 8.759
+    },
+    "ggml-org/Inkling-2-Mini-GGUF@e8a2cecf0e78914f07cc27b9be711a9b2c7561d9": {
+      "format": "GGUF · IQ4_NL (experts in RAM)",
+      "size_gb": 17.628
     }
   }
 }
