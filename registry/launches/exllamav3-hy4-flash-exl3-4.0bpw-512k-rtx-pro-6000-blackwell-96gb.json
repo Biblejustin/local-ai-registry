@@ -1,0 +1,75 @@
+{
+  "id": "exllamav3-hy4-flash-exl3-4.0bpw-512k-rtx-pro-6000-blackwell-96gb",
+  "kind": "host",
+  "engine": "exllamav3",
+  "about": "Tencent Hy4-Flash EXL3 SC 4.00 bpw with a shared 524,288-token KV pool on one RTX PRO 6000 Blackwell 96 GB. Up to eight concurrent shorter sequences use segmented KV reservation. Vision, tools and reasoning use the checkpoint chat template. DFly2 MTP drafts up to three tokens at low concurrency and one with three or more decoding streams. Q8 global KV and a 128-page sliding-window ring retain long context. The Engram table lives in host RAM.",
+  "command": [
+    "python3",
+    "serve_hy4.py",
+    "-m",
+    "models/Hy4-flash-exl3-f4b66a88",
+    "-cs",
+    "524288",
+    "-cq",
+    "8,8",
+    "--mtp",
+    "-ndt",
+    "3",
+    "-sdh",
+    "16384",
+    "-ngr",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "30200",
+    "--served-name",
+    "hy4-flash",
+    "--max-batch-size",
+    "8",
+    "--kv-requeue-tokens",
+    "4096"
+  ],
+  "install": "Requires Linux x86_64 with NVIDIA Blackwell GPU (96 GB VRAM, driver 580+/615+), CUDA toolkit (12.8+/13.2) and PyTorch with CUDA pre-installed (tested on torch 2.15.0+cu132, driver 615.78.08). Build/install exllamav3 from sybil-solutions/exllamav3@0c1e400bef270fb4197bbee9e2772b6d9a34b834 with TORCH_CUDA_ARCH_LIST=12.0, plus fastapi, uvicorn, jinja2, pillow, huggingface_hub.",
+  "pip": [
+    "exllamav3 @ git+https://github.com/sybil-solutions/exllamav3.git@0c1e400bef270fb4197bbee9e2772b6d9a34b834",
+    "fastapi==0.165.0",
+    "uvicorn==0.54.0",
+    "jinja2==3.1.6",
+    "pillow==13.0.0",
+    "huggingface_hub==0.36.2"
+  ],
+  "env": {
+    "EXL3_MLA_RING_PAGES": "128",
+    "EXL3_DSA_QC_STAGE_MAX_ENTRIES": "524288",
+    "EXL3_MOE_COOP_WIDE": "1",
+    "EXL3_GEMV_K8": "6",
+    "EXL3_HY4_WHOLE_GRAPH": "1",
+    "EXL3_PROB_SPEC": "1",
+    "EXL3_CONC_DRAFT_CAP": "1"
+  },
+  "port": 30200,
+  "weights": [
+    {
+      "repo": "turboderp/Hy4-flash-exl3",
+      "revision": "f4b66a88b4d8937fec21ad695f6baa405105ee12",
+      "at": "models/Hy4-flash-exl3-f4b66a88",
+      "layout": "dir",
+      "files": null
+    }
+  ],
+  "config": {
+    "at": "serve_hy4.py",
+    "file": "exllamav3-hy4-flash-segmented-serve.py"
+  },
+  "ctx": 524288,
+  "seqs": 1,
+  "vision": true,
+  "backend": "nvidia",
+  "cards": 1,
+  "needs": {
+    "host_ram_gb": 76.0,
+    "disk_gb": 148.2
+  },
+  "setup": "Needs one RTX PRO 6000 Blackwell 96 GB, at least 76 GB free host RAM, and 148.2 GB disk for the pinned 4.00 bpw checkpoint. Use the sc_4.00bpw variant. Install CUDA-enabled PyTorch and the pinned ExLlamaV3 commit with TORCH_CUDA_ARCH_LIST=12.0. The 524,288-token pool serves one full-length sequence or up to eight shorter sequences sharing that budget. The 4,096-token allocation segment allows long completions to continue without a per-request output cap.",
+  "source": "https://github.com/sybil-solutions/exllamav3/tree/0c1e400bef270fb4197bbee9e2772b6d9a34b834"
+}
