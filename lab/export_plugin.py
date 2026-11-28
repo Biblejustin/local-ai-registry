@@ -41,7 +41,7 @@ def plugin_launch(L, args):
 
 def exportable(launch):
     """A launch the plugin may run: one plain container whose flags are at most the GPU device nodes."""
-    return (not any(launch.get(x) for x in ("kind", "machines", "build"))
+    return (not any(launch.get(x) for x in ("kind", "machines", "build", "companion"))
             and set(launch.get("flags") or []) <= DEVICE_FLAGS)
 
 
@@ -153,7 +153,7 @@ def eligible(r, version, vram_gb=None):  # vram_gb: one card's memory, None read
     # a recipe its publisher reported (not yet run by the lab) is exported too, flagged `reported`, so the plugin can
     # say so; one withdrawn is not
     # a launch with a companion (a second container on a card of another kind) is a candidate until a plugin runs it
-    if any(L.get(x) for x in ("kind", "flags", "machines", "build", "companion")) or r["proof"][0].get("withdrawn"):
+    if not exportable(L) or r["proof"][0].get("withdrawn"):
         return False
     if not describable(r):
         return False
