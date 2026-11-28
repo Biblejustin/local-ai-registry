@@ -32,7 +32,7 @@ running = []
 while todo or running:
     while todo and len(running) < a.jobs:
         card, model, argv = todo.pop(0)
-        log = open(lab.RUNS / f"{card}.{model}.log", "w")
+        log = open(lab.RUNS / f"{card}.{model}.log", "w", encoding="utf-8")
         running.append((card, model, subprocess.Popen(argv, stdout=log, stderr=log)))
         time.sleep(3)
     for job in running[:]:
